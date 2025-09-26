@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Infos hôtel – FRAMISSIMA</title>
+  <style>
+    :root{
+      --fram-red:#E32219;
+      --fram-gray:#706F6F;
+      --border:#E6E6E6;
+      --radius:16px;
+      --text:#000; --bg:#fff;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+              font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:980px;margin:0 auto;padding:12px 14px 56px}
+
+    /* Header PNG */
+    .club-header{position:sticky; top:0; z-index:50; background:#fff;
+                 border-bottom:1px solid var(--border); padding:8px 14px 10px}
+    .club-header img{display:block;max-width:100%;height:auto;border-radius:10px}
+
+    /* Topbar (titre + burger) */
+    .topbar{position:sticky; top:0; z-index:40; background:#fff; border-bottom:1px solid var(--border)}
+    .topbar__inner{position:relative; display:flex; align-items:center; justify-content:space-between; padding:14px}
+    .title{margin:0;font-size:28px;font-weight:800}
+
+    /* Burger */
+    .burger{display:inline-flex; flex-direction:column; gap:4px; width:34px; height:28px; align-items:flex-end;
+            background:transparent; border:0; cursor:pointer; padding:0; margin:0}
+    .burger span{display:block;height:3px;background:var(--fram-red);border-radius:3px}
+    .burger span:nth-child(1){width:100%}
+    .burger span:nth-child(2){width:70%}
+    .burger span:nth-child(3){width:85%}
+
+    /* Menu flottant (10vw) */
+    .menu{position:absolute; top:100%; right:14px; width:10vw; background:#fff; border:1px solid var(--border);
+          border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding:12px; display:flex; flex-direction:column; gap:10px;
+          transform:translateY(-10px); opacity:0; pointer-events:none; transition:transform .25s ease, opacity .25s ease}
+    .menu.open{transform:translateY(0); opacity:1; pointer-events:auto}
+    .btn-nav{display:block; width:100%; text-align:center; text-decoration:none; background:var(--fram-red); color:#fff; font-weight:700;
+             padding:12px 14px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    @media (max-width:400px){ .menu{width:100vw; right:0} }
+
+    /* Sections d'infos (cartes) */
+    .infos{display:flex; flex-direction:column; gap:12px; margin-top:12px}
+    .card{border:1px solid var(--border); border-radius:var(--radius); padding:16px; background:#fff}
+    .card h3{margin:0 0 8px; font-size:16px; font-weight:800; color:var(--fram-red)}
+    .card p{margin:0; white-space:pre-line; line-height:1.45}
+
+    /* Note bas de page */
+    .fine-note{margin:22px 0 0; font-size:12px; color:var(--fram-gray)}
+
+    /* ✅ Photo équipe */
+    .team-photo {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header PNG -->
+  <header id="clubHeader" class="club-header"></header>
+
+  <!-- Barre de titre + menu -->
+  <header class="topbar">
+    <div class="topbar__inner wrap">
+      <h1 class="title">Infos hôtel</h1>
+      <button id="burger" class="burger" aria-expanded="false" aria-controls="menu" aria-label="Ouvrir le menu">
+        <span></span><span></span><span></span>
+      </button>
+      <nav id="menu" class="menu" aria-hidden="true">
+        <a class="btn-nav" id="btnProgramme" href="#">Animation Adultes</a>
+        <a class="btn-nav" id="btnKids"      href="#">Club Enfants</a>
+        <a class="btn-nav" id="btnTeens"     href="#">Club Ados</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="infos" class="infos" aria-label="Informations pratiques"></section>
+    <p class="fine-note">Ces informations sont fournies à titre indicatif et peuvent évoluer.</p>
+  </main>
+
+  <!-- Variables injectées par Make -->
+  <script>
+    window.__PROGRAM__ = {
+      club: "{{1.clubName}}",
+      header: "{{12.header_b64}}",
+      data: {{if(length(1.jsonLong) > 0; 1.jsonLong; "[]")}},
+      slug: "{{1.slug}}",
+      teamPhoto: "{{38.team_b64}}"
+    };
+  </script>
+
+<script>
+/* ====== Données ====== */
+const PROGRAM = window.__PROGRAM__;
+
+/* ====== Header PNG (base64 ou data:) ====== */
+const headerEl = document.getElementById('clubHeader');
+const img = new Image();
+img.src = PROGRAM.header.startsWith('data:') ? PROGRAM.header : `data:image/png;base64,${PROGRAM.header}`;
+img.alt = PROGRAM.club || 'FRAMISSIMA';
+headerEl.appendChild(img);
+
+/* ====== Util: construit un src valide (data: ou http) ====== */
+function buildImageSrc(str, mime){
+  const s = (str || "").trim();
+  if (!s) return "";
+  if (s.startsWith("data:") || /^https?:\/\//i.test(s)) return s;
+  return `data:${mime};base64,` + s.replace(/\s+/g, "");
+}
+
+/* ====== Rendu sections ====== */
+const infos = document.getElementById('infos');
+function renderSections(list){
+  infos.innerHTML = '';
+  (list || []).forEach((sec, idx)=>{
+    const art = document.createElement('article');
+    art.className = 'card';
+
+    const h = document.createElement('h3');
+    h.textContent = sec.title || '';
+    art.appendChild(h);
+
+    // ✅ Ajout : photo équipe après le 1er titre
+    const teamSrc = buildImageSrc(PROGRAM.teamPhoto, 'image/jpeg');
+    if (idx === 0 && teamSrc){
+      const img = new Image();
+      img.src = teamSrc;
+      img.alt = PROGRAM.club || 'Équipe animation';
+      img.className = 'team-photo';
+      img.onerror = ()=>console.log('⚠️ teamPhoto non affichée (src invalide)');
+      art.appendChild(img);
+    }
+
+    const p = document.createElement('p');
+    p.textContent = (sec.body || '').replace(/\r\n/g, '\n');
+    art.appendChild(p);
+
+    infos.appendChild(art);
+  });
+}
+renderSections(PROGRAM.data);
+
+/* ====== Menu flottant ====== */
+const burger = document.getElementById('burger');
+const menu = document.getElementById('menu');
+function openMenu(){ menu.classList.add('open'); burger.setAttribute('aria-expanded','true'); menu.setAttribute('aria-hidden','false'); }
+function closeMenu(){ menu.classList.remove('open'); burger.setAttribute('aria-expanded','false'); menu.setAttribute('aria-hidden','true'); }
+burger.addEventListener('click', (e)=>{ e.stopPropagation(); menu.classList.contains('open') ? closeMenu() : openMenu(); });
+menu.addEventListener('click', (e)=>{ if(e.target.closest('a')) closeMenu(); });
+document.addEventListener('click', (e)=>{ if(menu.classList.contains('open') && !e.target.closest('#menu') && !e.target.closest('#burger')) closeMenu(); });
+
+/* ====== Liens inter-sites ====== */
+(function(){
+  try{
+    const slug = PROGRAM.slug || (location.pathname.split('/').filter(Boolean).slice(-1)[0] || '');
+    document.getElementById('btnProgramme').href = `https://programmes-framissima.netlify.app/${slug}/`;
+    document.getElementById('btnKids').href      = `https://club-enfants-framissima.netlify.app/${slug}/`;
+    document.getElementById('btnTeens').href     = `https://club-ados-framissima.netlify.app/${slug}/`;
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
