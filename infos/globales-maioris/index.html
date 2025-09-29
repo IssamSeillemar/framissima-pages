@@ -192,9 +192,9 @@ renderSections(PROGRAM.data);
 (function(){
   // Construit une URL d’embed Google Maps
   function embedUrl(lat, lng, z=15){
-    const ll = `${lat},${lng}`;
-    return `https://www.google.com/maps?q=${encodeURIComponent(ll)}&z=${z}&output=embed`;
-  }
+  const ll = `${lat},${lng}`;
+  return `https://www.google.com/maps?q=${encodeURIComponent(ll)}&t=k&z=${z}&output=embed`;
+}
   // Lien itinéraire vers l’hôtel
   function directionsUrl(lat, lng){
     const dest = `${lat},${lng}`;
