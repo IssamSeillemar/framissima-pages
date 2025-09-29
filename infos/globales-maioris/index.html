@@ -65,7 +65,7 @@
     /* 🗺️ Carte (embed) */
     .map-frame{
       width:100%;
-      height:320px;
+      height:600px;
       border:1px solid var(--border);
       border-radius:var(--radius);
     }
@@ -217,7 +217,7 @@ renderSections(PROGRAM.data);
   card.className = 'card';
   card.id = 'mapCard';
   card.innerHTML = `
-    <h3>Localisation</h3>
+    <h3>LOCALISATION</h3>
     <iframe id="mapFrame" class="map-frame" title="Carte de localisation"
       loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
     <div class="map-actions" id="mapActions" style="display:none">
