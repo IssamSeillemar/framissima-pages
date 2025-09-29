@@ -68,7 +68,6 @@
       height:600px;
       border:1px solid var(--border);
       border-radius:var(--radius);
-      background:#f8f8f8;
     }
     .map-hint{
       margin-top:8px;
@@ -80,9 +79,8 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      align-items:center;
     }
-    .btn-route, .btn-retry{
+    .btn-route{
       display:inline-block;
       background:var(--fram-red);
       color:#fff;
@@ -91,10 +89,7 @@
       padding:10px 12px;
       border-radius:12px;
       box-shadow:0 2px 8px rgba(0,0,0,.06);
-      border:0;
-      cursor:pointer;
     }
-    .muted{color:var(--fram-gray)}
   </style>
 </head>
 <body>
@@ -118,6 +113,7 @@
 
   <main class="wrap">
     <section id="infos" class="infos" aria-label="Informations pratiques"></section>
+    <!-- La card “LOCALISATION” sera injectée ici (juste avant la fine note) si gmapsUrl existe -->
     <p class="fine-note">Ces informations sont fournies à titre indicatif et peuvent évoluer.</p>
   </main>
 
@@ -137,14 +133,18 @@
 /* ====== Données ====== */
 const PROGRAM = window.__PROGRAM__;
 
-/* ====== Header PNG ====== */
+/* ====== Header PNG (base64 ou data:) ====== */
 const headerEl = document.getElementById('clubHeader');
-const headerImg = new Image();
-headerImg.src = String(PROGRAM.header||'').startsWith('data:') ? PROGRAM.header : `data:image/png;base64,${PROGRAM.header||''}`;
-headerImg.alt = PROGRAM.club || 'FRAMISSIMA';
-headerEl.appendChild(headerImg);
+{
+  const img = new Image();
+  img.src = PROGRAM.header && PROGRAM.header.startsWith('data:')
+    ? PROGRAM.header
+    : `data:image/png;base64,${PROGRAM.header||''}`;
+  img.alt = PROGRAM.club || 'FRAMISSIMA';
+  headerEl.appendChild(img);
+}
 
-/* ====== Menu ====== */
+/* ====== Menu burger ====== */
 const burger = document.getElementById('burger');
 const menu = document.getElementById('menu');
 function openMenu(){ menu.classList.add('open'); burger.setAttribute('aria-expanded','true'); menu.setAttribute('aria-hidden','false'); }
@@ -153,20 +153,26 @@ burger.addEventListener('click', (e)=>{ e.stopPropagation(); menu.classList.cont
 menu.addEventListener('click', (e)=>{ if(e.target.closest('a')) closeMenu(); });
 document.addEventListener('click', (e)=>{ if(menu.classList.contains('open') && !e.target.closest('#menu') && !e.target.closest('#burger')) closeMenu(); });
 
-/* ====== Sections ====== */
+/* ====== Rendu des sections ====== */
 const infos = document.getElementById('infos');
+
+/* Helper: accepte base64 pur ou data:... */
 function buildImageSrc(input, mime){
   if(!input) return '';
   return String(input).startsWith('data:') ? input : `data:${mime};base64,${input}`;
 }
+
 function renderSections(list){
   infos.innerHTML = '';
   (list || []).forEach((sec, idx)=>{
     const art = document.createElement('article');
     art.className = 'card';
+
     const h = document.createElement('h3');
     h.textContent = sec.title || '';
     art.appendChild(h);
+
+    // ✅ Photo équipe après le 1er titre
     const teamSrc = buildImageSrc(PROGRAM.teamPhoto, 'image/jpeg');
     if (idx === 0 && teamSrc){
       const img = new Image();
@@ -176,137 +182,41 @@ function renderSections(list){
       img.onerror = ()=>console.log('⚠️ teamPhoto non affichée (src invalide)');
       art.appendChild(img);
     }
+
     const p = document.createElement('p');
     p.textContent = (sec.body || '').replace(/\r\n/g, '\n');
     art.appendChild(p);
+
     infos.appendChild(art);
   });
 }
 renderSections(PROGRAM.data);
 
-/* ====== Carte (géoloc > gmapsUrl > message) ====== */
+/* ====== LOCALISATION : affiche la carte si gmapsUrl existe ====== */
 (function(){
-  // iOS aime mieux /maps/embed? que .../maps?q=...&output=embed
-  function embedFromLatLng(lat, lng, z=15){
-    const q = encodeURIComponent(`${lat},${lng}`);
-    return `https://www.google.com/maps/embed?hl=fr&t=k&z=${z}&q=${q}`;
-  }
-  function embedFromUrl(url){
-    if(!url) return '';
-    // Normalise sur www.google.com + force /maps/embed? quand c’est possible
-    let u = url.trim()
-      .replace(/^https?:\/\/maps\.google\.com/i,'https://www.google.com')
-      .replace(/^https?:\/\/google\.com/i,'https://www.google.com');
-    // Si c’est déjà un /maps/embed? → ok
-    if(/\/maps\/embed\?/i.test(u)) return addSat(u);
-    // Sinon, si on a un paramètre q=... on repart sur /maps/embed?q=...
-    const m = u.match(/[?&]q=([^&]+)/i);
-    if(m){
-      const q = m[1];
-      return `https://www.google.com/maps/embed?hl=fr&t=k&q=${q}`;
-    }
-    // À défaut, on tente quand même l’URL avec output=embed (compat Web)
-    if(!/[?&]output=embed/i.test(u)) u += (u.includes('?')?'&':'?')+'output=embed';
-    return addSat(u);
-  }
-  function addSat(u){
-    return /[?&]t=k/i.test(u) ? u : (u + '&t=k');
-  }
+  const url = (PROGRAM.gmapsUrl || '').trim();
+  if(!url) return; // rien à faire
+
+  const fineNote = document.querySelector('.fine-note');
 
   const card = document.createElement('article');
   card.className = 'card';
   card.id = 'mapCard';
   card.innerHTML = `
     <h3>LOCALISATION</h3>
-    <iframe id="mapFrame" class="map-frame" title="Carte de localisation"
-      loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
-    <div id="mapMsg" class="map-hint" style="display:none"></div>
-    <div id="mapActions" class="map-actions" style="display:none">
-      <button id="btnRetry" class="btn-retry" type="button">Réessayer</button>
-      <span class="muted">La vue satellite est activée par défaut.</span>
+    <iframe class="map-frame" title="Carte Google Maps"
+      src="${url}"
+      loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"
+      allowfullscreen>
+    </iframe>
+    <div class="map-actions">
+      <a class="btn-route" href="${url}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>
-    <a id="mapTestLink" href="#" target="_blank" rel="noopener" style="display:none">test</a>
   `;
-  const fineNote = document.querySelector('.fine-note');
+
+  // Insérer juste avant la fine note
   fineNote.parentNode.insertBefore(card, fineNote);
-
-  const iframe = card.querySelector('#mapFrame');
-  const msg = card.querySelector('#mapMsg');
-  const actions = card.querySelector('#mapActions');
-  const btnRetry = card.querySelector('#btnRetry');
-  const testLink = card.querySelector('#mapTestLink');
-
-  let loadTimer;
-
-  function setIframe(src){
-    clearTimeout(loadTimer);
-    iframe.removeAttribute('src');
-    // petit délai pour forcer un nouveau chargement propre sur iOS
-    setTimeout(()=>{
-      iframe.src = src;
-      testLink.href = src; // pour diagnostiquer en ouvrant dans un nouvel onglet si besoin
-      // Si au bout de 6s rien n’a chargé → message
-      loadTimer = setTimeout(()=>{
-        if(!iframe.dataset.loaded){
-          showNeedPermission(true); // “échec de chargement”
-        }
-      }, 6000);
-    }, 50);
-  }
-
-  iframe.addEventListener('load', ()=>{
-    iframe.dataset.loaded = '1';
-    msg.style.display = 'none';
-    actions.style.display = 'none';
-  }, { once:false });
-
-  iframe.addEventListener('error', ()=>{
-    showNeedPermission(true);
-  });
-
-  function showUserMap(lat, lng){
-    setIframe(embedFromLatLng(lat, lng, 15));
-  }
-  function showHotelMapFromUrl(url){
-    setIframe(embedFromUrl(url));
-  }
-
-  function showNeedPermission(failed=false){
-    msg.innerHTML = failed
-      ? `La carte n’a pas pu se charger. Vérifiez vos réglages de confidentialité (iOS : <em>Réglages › Confidentialité › Service de localisation</em>, puis <em>Chrome/Safari</em>), puis appuyez sur « Réessayer ».`
-      : `Vous devez autoriser la localisation dans les paramètres de votre navigateur pour voir la carte.
-         Ensuite appuyez sur « Réessayer ».`;
-    msg.style.display = 'block';
-    actions.style.display = 'flex';
-  }
-
-  function tryGeoloc(){
-    iframe.dataset.loaded = '';
-    if(!('geolocation' in navigator)){
-      if(PROGRAM.gmapsUrl){ showHotelMapFromUrl(PROGRAM.gmapsUrl); }
-      else { showNeedPermission(); }
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos=>{
-        const { latitude, longitude } = pos.coords || {};
-        if(Number.isFinite(latitude) && Number.isFinite(longitude)){
-          showUserMap(latitude, longitude);
-        }else{
-          if(PROGRAM.gmapsUrl){ showHotelMapFromUrl(PROGRAM.gmapsUrl); }
-          else { showNeedPermission(); }
-        }
-      },
-      _err=>{
-        if(PROGRAM.gmapsUrl){ showHotelMapFromUrl(PROGRAM.gmapsUrl); }
-        else { showNeedPermission(); }
-      },
-      { enableHighAccuracy:true, timeout:6000, maximumAge:30000 }
-    );
-  }
-
-  btnRetry.addEventListener('click', tryGeoloc);
-  tryGeoloc();
 })();
 
 /* ====== Liens inter-sites ====== */
